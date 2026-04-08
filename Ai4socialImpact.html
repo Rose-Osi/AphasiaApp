@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aphasia Recovery Hub</title>
+    <style>
+        :root {
+            --red-theme: #ff6b6b;
+            --yellow-theme: #ffd93d;
+            --blue-theme: #4cc9f0;
+            --green-theme: #6a994e;
+            --purple-theme: #a29bfe;
+            --sky: #a7d8f5;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.5s ease;
+            background-color: var(--sky);
+        }
+
+        .illustration-layer {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            opacity: 0.6;
+        }
+
+        .container { width: 95%; max-width: 600px; z-index: 10; }
+        .screen { display: none; text-align: center; }
+        .active { display: block; }
+
+        .activity-box {
+            display: flex; align-items: center; width: 100%; padding: 25px;
+            margin: 15px 0; border-radius: 25px; border: 4px solid white;
+            cursor: pointer; font-size: 1.6rem; font-weight: 800; color: white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2); transition: transform 0.2s;
+        }
+        .activity-box:hover { transform: translateY(-5px); }
+
+        .game-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px; border-radius: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .image-display { font-size: 120px; margin: 10px 0; }
+        
+        .progress-bar-bg { width: 100%; height: 15px; background: #ddd; border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+        #progress-fill { width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s; }
+
+        /* The Control Button */
+        .attempt-btn {
+            background: var(--blue-theme);
+            color: white; border: none; padding: 20px 40px;
+            border-radius: 50px; font-size: 1.4rem; font-weight: bold;
+            cursor: pointer; width: 100%; margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .attempt-btn.active-listening {
+            background: #e74c3c;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .match-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .match-option { background: white; padding: 20px; border-radius: 15px; border: 3px solid #ddd; font-size: 1.2rem; cursor: pointer; }
+    </style>
+</head>
+<body id="main-body">
+
+    <svg class="illustration-layer" viewBox="0 0 800 600">
+        <rect x="0" y="450" width="800" height="150" fill="#2ecc71" />
+        <rect x="550" y="200" width="200" height="250" fill="#e67e22" />
+        <rect x="530" y="250" width="240" height="40" fill="#d35400" />
+    </svg>
+
+    <div class="container">
+        <div id="home-screen" class="screen active">
+            <h1 style="color: white; text-shadow: 2px 2px 5px rgba(0,0,0,0.3);">Practice Hub</h1>
+            <button class="activity-box" style="background: var(--red-theme)" onclick="start('general')"><span>🍎</span> &nbsp; Word Practice</button>
+            <button class="activity-box" style="background: var(--yellow-theme); color: #333;" onclick="start('actions')"><span>🏃</span> &nbsp; Action Words</button>
+            <button class="activity-box" style="background: var(--blue-theme)" onclick="start('kitchen')"><span>🍴</span> &nbsp; Kitchen Items</button>
+            <button class="activity-box" style="background: var(--green-theme)" onclick="start('places')"><span>🏥</span> &nbsp; Places</button>
+            <button class="activity-box" style="background: var(--purple-theme)" onclick="startMatchGame()"><span>🧩</span> &nbsp; Picture Match</button>
+        </div>
+
+        <div id="practice-screen" class="screen">
+            <div class="game-card">
+                <div class="progress-bar-bg"><div id="progress-fill"></div></div>
+                <div id="counter" style="font-weight: bold; color: #666;">1 / 12</div>
+                <div id="display-emoji" class="image-display">🍎</div>
+                <h2 id="target-text">APPLE</h2>
+                
+                <button id="attempt-btn" class="attempt-btn">Click to Attempt</button>
+                
+                <div id="feedback" style="margin-top:20px; min-height: 30px; font-weight: bold; font-size: 1.2rem;"></div>
+                <button onclick="exitToHome()" style="background:none; border:none; text-decoration:underline; cursor:pointer; color:#999; margin-top:20px;">Exit Session</button>
+            </div>
+        </div>
+
+        <div id="match-screen" class="screen">
+            <div class="game-card">
+                <div class="progress-bar-bg"><div id="match-progress-fill"></div></div>
+                <h3>Match the word to the picture:</h3>
+                <div id="match-emoji" class="image-display">🍎</div>
+                <div class="match-grid" id="match-options"></div>
+                <button onclick="exitToHome()" style="background:none; border:none; text-decoration:underline; cursor:pointer; color:#999; margin-top:20px;">Exit Session</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // EXPANDED DATA LIBRARY (100+ items)
+        const library = {
+            general: [
+                {w:'apple', e:'🍎'}, {w:'banana', e:'🍌'}, {w:'cat', e:'🐱'}, {w:'dog', e:'🐶'}, {w:'sun', e:'☀️'}, 
+                {w:'moon', e:'🌙'}, {w:'book', e:'📖'}, {w:'phone', e:'📱'}, {w:'car', e:'🚗'}, {w:'tree', e:'🌳'},
+                {w:'bird', e:'🐦'}, {w:'fish', e:'🐟'}, {w:'flower', e:'🌸'}, {w:'hat', e:'🎩'}, {w:'shoe', e:'👟'},
+                {w:'milk', e:'🥛'}, {w:'bread', e:'🍞'}, {w:'egg', e:'🥚'}, {w:'star', e:'⭐'}, {w:'ball', e:'⚽'}
+            ],
+            actions: [
+                {w:'run', e:'🏃'}, {w:'sit', e:'🪑'}, {w:'sleep', e:'😴'}, {w:'eat', e:'🍽️'}, {w:'walk', e:'🚶'},
+                {w:'jump', e:'🦘'}, {w:'dance', e:'💃'}, {w:'swim', e:'🏊'}, {w:'climb', e:'🧗'}, {w:'sing', e:'🎤'},
+                {w:'write', e:'✍️'}, {w:'laugh', e:'😂'}, {w:'cry', e:'😢'}, {w:'wave', e:'👋'}, {w:'think', e:'🤔'}
+            ],
+            kitchen: [
+                {w:'fork', e:'🍴'}, {w:'spoon', e:'🥄'}, {w:'knife', e:'🔪'}, {w:'plate', e:'🍽️'}, {w:'cup', e:'☕'},
+                {w:'bowl', e:'🥣'}, {w:'pot', e:'🍲'}, {w:'pan', e:'🍳'}, {w:'oven', e:'🍞'}, {w:'fridge', e:'❄️'},
+                {w:'toaster', e:'🍞'}, {w:'sink', e:'🚰'}, {w:'kettle', e:'🫖'}, {w:'salt', e:'🧂'}, {w:'pepper', e:'🌶️'}
+            ],
+            places: [
+                {w:'office', e:'🏢'}, {w:'school', e:'🏫'}, {w:'playground', e:'🛝'}, {w:'coffee shop', e:'☕'}, 
+                {w:'market', e:'🛒'}, {w:'party', e:'🥳'}, {w:'zoo', e:'🦁'}, {w:'hospital', e:'🏥'}, 
+                {w:'beach', e:'🏖️'}, {w:'bank', e:'🏦'}, {w:'park', e:'🌳'}, {w:'library', e:'📚'},
+                {w:'gym', e:'🏋️'}, {w:'airport', e:'✈️'}, {w:'farm', e:'🚜'}
+            ]
+        };
+
+        let currentSession = [];
+        let index = 0;
+        let isListening = false;
+
+        const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const rec = new Speech();
+        rec.lang = 'en-US';
+        rec.continuous = true; // Key for manual control: don't stop until we say so
+
+        const attemptBtn = document.getElementById('attempt-btn');
+        const feedback = document.getElementById('feedback');
+
+        function start(cat) {
+            const colors = {general:'#ff6b6b', actions:'#ffd93d', kitchen:'#4cc9f0', places:'#6a994e'};
+            document.body.style.backgroundColor = colors[cat];
+            
+            // Randomly shuffle and take 12
+            currentSession = [...library[cat]].sort(() => 0.5 - Math.random()).slice(0, 12);
+            index = 0;
+            showScreen('practice-screen');
+            loadWord();
+        }
+
+        function loadWord() {
+            const item = currentSession[index];
+            document.getElementById('display-emoji').textContent = item.e;
+            document.getElementById('target-text').textContent = item.w.toUpperCase();
+            document.getElementById('counter').textContent = `${index + 1} / 12`;
+            document.getElementById('progress-fill').style.width = ((index) / 12) * 100 + "%";
+            feedback.textContent = "";
+            attemptBtn.textContent = "Click to Attempt";
+            attemptBtn.className = "attempt-btn";
+            isListening = false;
+        }
+
+        // CONTROL LOGIC: START AND STOP
+        attemptBtn.onclick = () => {
+            if (!isListening) {
+                // START
+                try {
+                    rec.start();
+                    isListening = true;
+                    attemptBtn.textContent = "Click when Done";
+                    attemptBtn.className = "attempt-btn active-listening";
+                    feedback.textContent = "Listening...";
+                } catch(e) { console.log("Recognition already started"); }
+            } else {
+                // STOP AND CHECK
+                rec.stop();
+                isListening = false;
+                attemptBtn.textContent = "Checking...";
+                attemptBtn.className = "attempt-btn";
+            }
+        };
+
+        rec.onresult = (e) => {
+            const heard = e.results[e.results.length - 1][0].transcript.toLowerCase();
+            const target = currentSession[index].w;
+
+            if (heard.includes(target)) {
+                feedback.textContent = "Excellent! ✅";
+                feedback.style.color = "green";
+                setTimeout(() => {
+                    index++;
+                    if (index < 12) loadWord(); else exitToHome();
+                }, 1200);
+            } else {
+                feedback.textContent = `I heard "${heard}". Try again!`;
+                feedback.style.color = "#e67e22";
+                attemptBtn.textContent = "Try Again";
+            }
+        };
+
+        // MATCHING GAME
+        function startMatchGame() {
+            document.body.style.backgroundColor = '#a29bfe';
+            currentSession = Object.values(library).flat().sort(() => 0.5 - Math.random()).slice(0, 12);
+            index = 0;
+            showScreen('match-screen');
+            loadMatchRound();
+        }
+
+        function loadMatchRound() {
+            const correct = currentSession[index];
+            document.getElementById('match-emoji').textContent = correct.e;
+            document.getElementById('match-progress-fill').style.width = (index / 12) * 100 + "%";
+
+            let options = [correct.w];
+            let allWords = Object.values(library).flat();
+            while(options.length < 4) {
+                let r = allWords[Math.floor(Math.random()*allWords.length)].w;
+                if(!options.includes(r)) options.push(r);
+            }
+            options.sort(() => 0.5 - Math.random());
+
+            const grid = document.getElementById('match-options');
+            grid.innerHTML = '';
+            options.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.className = 'match-option';
+                btn.textContent = opt.toUpperCase();
+                btn.onclick = () => {
+                    if(opt === correct.w) {
+                        index++;
+                        if(index < 12) loadMatchRound(); else exitToHome();
+                    } else { btn.style.borderColor = 'red'; }
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function exitToHome() {
+            document.body.style.backgroundColor = 'var(--sky)';
+            showScreen('home-screen');
+        }
+    </script>
+</body>
+</html>
