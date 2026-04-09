@@ -27,7 +27,7 @@
         }
         .image-display { font-size: 120px; margin: 10px 0; }
         .progress-bar { width: 100%; height: 15px; background: #ddd; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
-        #progress-fill { width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s; }
+        #progress-fill, #match-progress-fill { width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s; }
         .attempt-btn {
             background: var(--blue); color: white; border: none; padding: 20px 40px;
             border-radius: 50px; font-size: 1.4rem; font-weight: bold;
@@ -36,7 +36,12 @@
         .listening { background: #e74c3c; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
         .match-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-        .match-option { background: white; padding: 20px; border-radius: 15px; border: 3px solid #ddd; cursor: pointer; }
+        .match-option { 
+            background: white; padding: 20px; border-radius: 15px; 
+            border: 3px solid #ddd; cursor: pointer; font-weight: bold;
+            transition: transform 0.1s;
+        }
+        .match-option:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -64,8 +69,11 @@
 
         <div id="match-screen" class="screen">
             <div class="game-card">
+                <div class="progress-bar"><div id="match-progress-fill"></div></div>
+                <div id="match-counter">1 / 12</div>
                 <div id="match-emoji" class="image-display">🍎</div>
                 <div class="match-grid" id="match-options"></div>
+                <button onclick="location.reload()" style="margin-top:30px; background:none; border:none; text-decoration:underline; color:#999; cursor:pointer;">Exit</button>
             </div>
         </div>
     </div>
@@ -81,14 +89,20 @@
         let currentSession = [], index = 0, isListening = false;
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
         let rec = new Speech();
-        rec.continuous = false; // Changed to false for better stability
+        rec.continuous = false;
         rec.interimResults = false;
 
         const attemptBtn = document.getElementById('attempt-btn');
         const feedback = document.getElementById('feedback');
 
+        function showScreen(id) { 
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); 
+            document.getElementById(id).classList.add('active'); 
+        }
+
+        // --- SPEECH PRACTICE LOGIC ---
         function start(cat) {
-            document.body.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue(`--${cat === 'actions' ? 'yellow' : cat}-theme`).trim() || '#a7d8f5';
+            document.body.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue(`--${cat === 'actions' ? 'yellow' : (cat === 'general' ? 'red' : cat)}`).trim() || '#a7d8f5';
             currentSession = [...library[cat]].sort(() => 0.5 - Math.random()).slice(0, 12);
             index = 0; showScreen('practice-screen'); loadWord();
         }
@@ -98,8 +112,8 @@
             document.getElementById('display-emoji').textContent = item.e;
             document.getElementById('target-text').textContent = item.w.toUpperCase();
             document.getElementById('counter').textContent = `${index + 1} / 12`;
-            document.getElementById('progress-fill').style.width = (index / 12) * 100 + "%";
-            feedback.textContent = ""; feedback.style.color = "black";
+            document.getElementById('progress-fill').style.width = ((index + 1) / 12 * 100) + "%";
+            feedback.textContent = "";
             attemptBtn.textContent = "Click to Attempt";
             attemptBtn.className = "attempt-btn";
             isListening = false;
@@ -110,14 +124,12 @@
                 try {
                     rec.start();
                     isListening = true;
-                    attemptBtn.textContent = "Listening... Speak now!";
+                    attemptBtn.textContent = "Listening...";
                     attemptBtn.classList.add('listening');
                 } catch (e) { rec.stop(); isListening = false; }
             } else {
                 rec.stop();
                 isListening = false;
-                attemptBtn.textContent = "Processing...";
-                attemptBtn.classList.remove('listening');
             }
         };
 
@@ -126,31 +138,74 @@
             const target = currentSession[index].w;
             if (heard.includes(target)) {
                 feedback.textContent = "Correct! ✅"; feedback.style.color = "green";
-                setTimeout(() => { index++; if (index < 12) loadWord(); else location.reload(); }, 1200);
+                setTimeout(() => { 
+                    index++; 
+                    if (index < 12) loadWord(); 
+                    else location.reload(); 
+                }, 1200);
             } else {
-                feedback.textContent = `I heard "${heard}". Try again!`;
+                feedback.textContent = `Heard: "${heard}". Try again!`;
                 feedback.style.color = "orange";
-                attemptBtn.textContent = "Try Again";
             }
         };
 
-        rec.onerror = () => { isListening = false; attemptBtn.textContent = "Retry Click"; attemptBtn.classList.remove('listening'); };
-        rec.onend = () => { isListening = false; attemptBtn.classList.remove('listening'); if(attemptBtn.textContent === "Listening... Speak now!") attemptBtn.textContent = "Click to Attempt"; };
+        rec.onend = () => { 
+            isListening = false; 
+            attemptBtn.classList.remove('listening'); 
+            if(feedback.textContent === "") attemptBtn.textContent = "Click to Attempt";
+        };
 
-        function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
-        
-        // Simplified Match Game
+        // --- PICTURE MATCH LOGIC ---
         function startMatchGame() {
+            document.body.style.backgroundColor = "var(--purple)";
+            // Combine all items and pick 12
+            const allItems = [...library.general, ...library.actions, ...library.kitchen, ...library.places];
+            currentSession = allItems.sort(() => 0.5 - Math.random()).slice(0, 12);
+            index = 0;
             showScreen('match-screen');
-            const item = library.general[Math.floor(Math.random()*library.general.length)];
-            document.getElementById('match-emoji').textContent = item.e;
-            const opts = [item.w, 'Car', 'Tree', 'Dog'].sort(() => 0.5 - Math.random());
+            loadMatchRound();
+        }
+
+        function loadMatchRound() {
+            const correctItem = currentSession[index];
+            document.getElementById('match-emoji').textContent = correctItem.e;
+            document.getElementById('match-counter').textContent = `${index + 1} / 12`;
+            document.getElementById('match-progress-fill').style.width = ((index + 1) / 12 * 100) + "%";
+
+            // Get 3 random wrong words
+            let options = [correctItem.w];
+            const allWords = [...library.general, ...library.actions, ...library.kitchen, ...library.places].map(i => i.w);
+            
+            while(options.length < 4) {
+                let randomWord = allWords[Math.floor(Math.random() * allWords.length)];
+                if(!options.includes(randomWord)) options.push(randomWord);
+            }
+
+            // Shuffle options
+            options.sort(() => 0.5 - Math.random());
+
             const grid = document.getElementById('match-options');
             grid.innerHTML = '';
-            opts.forEach(o => {
-                const b = document.createElement('div'); b.className = 'match-option'; b.textContent = o.toUpperCase();
-                b.onclick = () => { if(o.toLowerCase() === item.w) location.reload(); else b.style.borderColor = 'red'; };
-                grid.appendChild(b);
+            
+            options.forEach(word => {
+                const btn = document.createElement('div');
+                btn.className = 'match-option';
+                btn.textContent = word.toUpperCase();
+                btn.onclick = () => {
+                    if(word === correctItem.w) {
+                        btn.style.backgroundColor = "#2ecc71";
+                        btn.style.color = "white";
+                        setTimeout(() => {
+                            index++;
+                            if(index < 12) loadMatchRound();
+                            else location.reload();
+                        }, 600);
+                    } else {
+                        btn.style.borderColor = "red";
+                        btn.style.color = "red";
+                    }
+                };
+                grid.appendChild(btn);
             });
         }
     </script>
